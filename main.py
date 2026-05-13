@@ -84,8 +84,11 @@ class App:
         playlists_path = [os.path.abspath(os.path.join(directory, name)) for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
         song_is_playing = None
         parent_dir = None
-        num_of_song = None
-        num_of_current_song = None
+        num_of_song = 0
+        num_of_current_song = 0
+        play = False
+        last_arrow_pos = None
+        last_arrowY = None
 
         while self.running:
             if show_playlist and current_playlist_path:
@@ -121,12 +124,12 @@ class App:
                 self.screen.addstr(1, 10, parent_dir)
                 if scroll < curses.LINES - 3:
                     for index in range(0, len_playlist):
-                        self.screen.addnstr(3 + index, ind, playlist[index][:-4], int(curses.COLS / 2) - 19)
+                        self.screen.addnstr(3 + index, ind, f"{index + 1}.{playlist[index][:-4]}", int(curses.COLS / 2) - 19)
                 else:
                     scroll_offset = max(0, arrow_pos - (curses.LINES - 6))
                     for index in range(0, curses.LINES - 5):
                         if index + scroll_offset < len_playlist:
-                            self.screen.addnstr(3 + index, ind, playlist[index + scroll_offset][:-4], int(curses.COLS / 2) - 19)
+                            self.screen.addnstr(3 + index, ind, f"{index + 1}.{playlist[index + scroll_offset][:-4]}", int(curses.COLS / 2) - 19)
             
             if song_is_playing != None:
                 current_time = self.current_frame / self.fs # секунды
@@ -149,15 +152,14 @@ class App:
                 else:
                     self.screen.addstr(1, int(curses.COLS / 2) - 2, "SYBAU ")
                     self.screen.addnstr(1, int(curses.COLS / 2) + 4, song_is_playing[:-4], int(curses.COLS / 2) - 5)
+                # если песня кончается, включается другая
                 if int(current_time) == int(self.total_time) - 1:
                     if num_of_song + 1 < len_playlist:
                         num_of_song += 1
-                        current_song_path = songs_path[num_of_song]
                         song_is_playing = playlist[num_of_song]
-                    else:
-                        song_is_playing = None
             else:
                 self.screen.addstr(1, int(curses.COLS / 2) - 2, "NOTHING IS PLAYING YET")
+            # проверяется не переключил ли юзер песню
             if num_of_song != num_of_current_song:
                 self.play_song(songs_path[num_of_song])
                 num_of_current_song = num_of_song
@@ -186,15 +188,23 @@ class App:
                 key = -1
 
             if key == 27: #Esc
-                quite()
-            if key == curses.KEY_UP:
+                if show_playlist:
+                    show_playlist = False
+                    in_directory = True
+                    current_playlist_path = None
+                    arrow_pos = last_arrow_pos
+                    arrowY = last_arrowY
+                else:
+                    quite()
+
+            if key in (curses.KEY_UP, 107, 'k'):
                 if arrowY > 3 and arrowY >= arrow_pos + 3:
                     arrowY -= 1
                     arrow_pos = max(0, arrow_pos - 1)
                 elif arrow_pos > 0:
                     arrow_pos -= 1
 
-            if key == curses.KEY_DOWN:
+            if key in (curses.KEY_DOWN, 106, 'j'):
                 max_items = len_folders if in_directory else len_playlist
                 max_pos = max_items - 1
 
@@ -213,6 +223,8 @@ class App:
  
             if key in (curses.KEY_ENTER, 10, 13):
                 if in_directory:
+                    last_arrow_pos = arrow_pos
+                    last_arrowY = arrowY
                     current_playlist_path = playlists_path[arrow_pos]
                     show_playlist = True
                     arrowY = 3
@@ -227,14 +239,19 @@ class App:
                     song_is_playing = playlist[arrow_pos]
                     self.play_song(songs_path[num_of_song])
 
-            if key == curses.KEY_LEFT:
-                if show_playlist:
-                    show_playlist = False
-                    in_directory = True
-                    current_playlist_path = None
-                    arrow_pos = 0
-                    arrowY = 3
-            if key == 32: # пробел
+            if key in (curses.KEY_LEFT, 104, 'h'):
+                if len_playlist != None:
+                    if num_of_song - 1 >= 0 and play:
+                        num_of_song -= 1
+                        song_is_playing = playlist[num_of_song]
+
+            if key in (curses.KEY_RIGHT, 108, 'l'):
+                if len_playlist != None:
+                    if num_of_song + 1 < len_playlist and play:
+                        num_of_song += 1
+                        song_is_playing = playlist[num_of_song]
+
+            if key in (32, ' '): # пробел
                 self.is_playing = not self.is_playing
                 play = not play
 
